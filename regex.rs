@@ -1,7 +1,7 @@
 type FsmIndex = usize;
 
 const FSM_COLUMN_SIZE: usize = 130;
-const FSM_LINEEND: usize = 129;
+const FSM_LINEEND: FsmIndex = 129;
 
 #[derive(Default, Clone, Copy)]
 struct FsmAction {
