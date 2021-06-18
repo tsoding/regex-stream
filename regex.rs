@@ -26,66 +26,109 @@ struct Regex {
     cs: Vec<FsmColumn>
 }
 
+#[derive(Debug, Copy, Clone)]
+enum Atom {
+    Any,
+    EndLine,
+    Char(char),
+}
+
+#[derive(Debug)]
+enum Token {
+    Atom(Atom),
+    Star(Atom),
+}
+
+fn lexer(src: &str) -> Vec<Token> {
+    let bytes = src.as_bytes();
+
+    let mut result = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        let atom = match bytes[i] as char {
+            '.'       => Atom::Any,
+            '$'       => Atom::EndLine,
+            '*' | '+' => panic!("Invalid target for quantifier"),
+            x         => Atom::Char(x),
+        };
+
+        i += 1;
+
+        match bytes.get(i).map(|x| *x as char) {
+            Some('*') => {
+                i += 1;
+                result.push(Token::Star(atom));
+            }
+            Some('+') => {
+                i += 1;
+                result.push(Token::Atom(atom));
+                result.push(Token::Star(atom));
+            }
+            _ => {
+                result.push(Token::Atom(atom));
+            }
+        };
+    }
+    result
+}
+
+fn compile_atom(atom: &Atom, success: FsmIndex) -> FsmColumn {
+    use Atom::*;
+
+    let mut column = FsmColumn::new();
+
+    match atom {
+        Any => {
+            for i in 32..127 {
+                column.ts[i] = FsmAction {
+                    next: success,
+                    offset: 1,
+                };
+            }
+        },
+        EndLine => {
+            column.ts[FSM_LINEEND] = FsmAction {
+                next: success,
+                offset: 1,
+            };
+        }
+        Char(x) => {
+            column.ts[*x as usize] = FsmAction {
+                next: success,
+                offset: 1,
+            };
+        }
+    }
+
+    column
+}
+
 impl Regex {
     fn compile(src: &str) -> Self {
+        let tokens = lexer(src);
         let mut fsm = Self { cs: Vec::new() };
-        fsm.cs.push(FsmColumn::new());
+        fsm.cs.push(FsmColumn::new()); // default failed state
 
-        for c in src.chars() {
-            let mut col = FsmColumn::new();
+        for token in tokens.iter() {
+            let current_state = fsm.cs.len();
+            let next_state = fsm.cs.len() + 1;
 
-            match c {
-                '$' => {
-                    col.ts[FSM_LINEEND] = FsmAction {
-                        next: fsm.cs.len() + 1,
-                        offset: 1,
-                    };
-                    fsm.cs.push(col);
+            match token {
+                Token::Atom(atom) => {
+                    let column = compile_atom(atom, next_state);
+                    fsm.cs.push(column);
                 },
-                '.' => {
-                    for i in 32..127 {
-                        col.ts[i] = FsmAction {
-                            next: fsm.cs.len() + 1,
-                            offset: 1,
-                        };
-                    }
-                    fsm.cs.push(col);
-                }
-                '*' => {
-                    let n = fsm.cs.len();
-                    for t in fsm.cs.last_mut().unwrap().ts.iter_mut() {
-                        if t.next == n {
-                            t.next = n - 1;
-                        } else if t.next == 0 {
-                            t.next = n;
-                            t.offset = 0;
+
+                Token::Star(atom) => {
+                    let mut column = compile_atom(atom, current_state);
+                    for action in column.ts.iter_mut() {
+                        if action.next == 0 {
+                            action.next = next_state;
                         } else {
-                            unreachable!();
+                            assert!(action.next == current_state);
                         }
                     }
-                }
-                '+' => {
-                    let n = fsm.cs.len();
-
-                    fsm.cs.push(fsm.cs.last().unwrap().clone());
-
-                    for t in fsm.cs.last_mut().unwrap().ts.iter_mut() {
-                        if t.next == n {
-                            // Just leave it as it is. It's already looped.
-                        } else if t.next == 0 {
-                            t.next = n + 1;
-                            t.offset = 0;
-                        } else {
-                            unreachable!();
-                        }
-                    }
-                }
-                _ => {
-                    col.ts[c as usize] = FsmAction {
-                        next: fsm.cs.len() + 1,
-                        offset: 1,
-                    };
-                    fsm.cs.push(col);
+                    fsm.cs.push(column);
                 }
             }
         }
@@ -155,13 +198,13 @@ fn main() {
             ("cbc", false),
             ("cbd", false),
             ("cbt", false),
-            ("abcd", true),
-        ], true),
+            ("abcd", false),
+        ], false),
         (".*bc", vec![
             ("bc", true),
             ("abc", true),
             ("aabc", true),
-        ], false),
+        ], true),
     };
 
     for (regex_src, test_cases, ignored) in tests.iter() {
