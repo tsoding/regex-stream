@@ -117,6 +117,7 @@ impl Regex {
         return state >= self.cs.len();
     }
 
+    #[allow(dead_code)]
     fn dump(&self) {
         for symbol in 0..FSM_COLUMN_SIZE {
             print!("{:03} => ", symbol);
@@ -130,15 +131,42 @@ impl Regex {
     }
 }
 
-fn main() {
-    let src = "a+bc$";
-    let regex = Regex::compile(src);
-    regex.dump();
-    println!("------------------------------");
+fn test_regex(regex_src: &str, test_cases: &[(&str, bool)]) {
+    let regex = Regex::compile(regex_src);
 
-    let inputs = vec!["Hello, World", "bc", "abc", "aabc", "aaabc", "bbc", "cbc", "cbd", "cbt", "abcd"];
-    println!("Regex: {}", src);
-    for input in inputs.iter() {
-        println!("{:?} => {:?}", input, regex.match_str(input));
+    println!("Testing {:?}", regex_src);
+    for (input, expected_outcome) in test_cases {
+        println!("  input: {:?}", input);
+        println!("  match: {:?}", *expected_outcome);
+        assert_eq!(regex.match_str(input), *expected_outcome);
+        println!();
+    }
+}
+
+fn main() {
+    let tests = vec!{
+        ("a+bc$", vec![
+            ("Hello, World", false),
+            ("bc", false),
+            ("abc", true),
+            ("aabc", true),
+            ("aaabc", true),
+            ("bbc", false),
+            ("cbc", false),
+            ("cbd", false),
+            ("cbt", false),
+            ("abcd", true),
+        ], true),
+        (".*bc", vec![
+            ("bc", true),
+            ("abc", true),
+            ("aabc", true),
+        ], false),
+    };
+
+    for (regex_src, test_cases, ignored) in tests.iter() {
+        if !ignored {
+            test_regex(regex_src, &test_cases);
+        }
     }
 }
