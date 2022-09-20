@@ -52,7 +52,7 @@ fn next_state(state: State, event: Event) -> State {
 fn main() {
     let mut state = State::Locked;
 
-    println!("State: {}", state.to_string());
+    println!("State: {}", state);
     print!("> ");
     io::stdout().flush().unwrap();
     for line in io::stdin().lock().lines() {
@@ -65,7 +65,7 @@ fn main() {
             }
         }
 
-        println!("State: {}", state.to_string());
+        println!("State: {}", state);
         print!("> ");
         io::stdout().flush().unwrap();
     }
