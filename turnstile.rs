@@ -1,5 +1,5 @@
 #![feature(variant_count)]
-use std::{fmt::{self, Display}, ops::Index, io::{Write, BufRead}};
+use std::{fmt::{self, Display}, ops::Index};
 use std::io::{self, BufRead, Write};
 
 #[derive(Copy, Clone)]
